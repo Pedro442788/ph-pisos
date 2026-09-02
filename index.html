@@ -224,7 +224,7 @@
   }
   .catalog-card:hover{border-color:var(--accent); background:var(--accent-soft);}
   .catalog-card .cat{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600;}
-  .catalog-card .nm{font-size:14.5px; font-weight:600; line-height:1.25;}
+  .catalog-card .nm{font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink);}
   .catalog-card .pr{font-family:var(--font-mono); font-size:14.5px; margin-top:auto;}
   .catalog-card .st{font-size:12px; color:var(--muted);}
   .catalog-card:disabled, .catalog-card.oos{opacity:.5; cursor:not-allowed;}
@@ -232,7 +232,7 @@
   .cart{display:flex; flex-direction:column; gap:12px;}
   .cart-items{display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto;}
   .cart-item{display:grid; grid-template-columns:1fr auto auto auto; gap:8px; align-items:center; padding:8px 10px; border:1px solid var(--line); border-radius:8px;}
-  .cart-item .nm{font-size:13.5px; font-weight:600;}
+  .cart-item .nm{font-size:13.5px; font-weight:600; color:var(--ink);}
   .cart-item .un{font-size:12px; color:var(--muted);}
   .qty-stepper{display:flex; align-items:center; gap:4px;}
   .qty-stepper button{width:22px; height:22px; border-radius:5px; border:1px solid var(--line); background:var(--surface); cursor:pointer; line-height:1;}
@@ -501,7 +501,7 @@ async function initDb(){
 
 function sub(name, cb){
   unsubs.push(db.collection(name).onSnapshot(
-    qs => cb(qs.docs.map(d=>Object.assign({id:d.id}, d.data()))),
+    list => cb(list),
     err => { toast('Erro ao sincronizar "'+name+'": '+(err&&err.message||''), 'err'); }
   ));
 }
@@ -683,7 +683,7 @@ function renderProducts(){
               </button>
               <button class="icon-btn" title="Excluir" data-action="delete-product" data-id="${p.id}">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z"/></svg>
-              </button>
+          </button>
             </div></td>
           </tr>`; }).join('') : `<tr><td colspan="7" class="empty-row">Nenhum produto encontrado. Cadastre o primeiro produto para começar.</td></tr>` }
         </tbody>
@@ -754,9 +754,19 @@ async function submitProductForm(){
   if(!data.name){ toast('Informe o nome do produto.','err'); return; }
   const id = form.dataset.id;
   try{
-    if(id){ await dbUpdate('products', id, data); toast('Produto atualizado.','ok'); }
-    else{ await dbAdd('products', Object.assign({createdAt:Date.now()}, data)); toast('Produto cadastrado.','ok'); }
+    if(id){
+      await dbUpdate('products', id, data);
+      const idx = S.products.findIndex(x=>x.id===id);
+      if(idx>=0) S.products[idx] = Object.assign({}, S.products[idx], data);
+      toast('Produto atualizado.','ok');
+    } else {
+      const created = Object.assign({createdAt:Date.now()}, data);
+      const {id:newId} = await dbAdd('products', created);
+      if(!S.products.some(x=>x.id===newId)) S.products.push(Object.assign({id:newId}, created));
+      toast('Produto cadastrado.','ok');
+    }
     closeModal();
+    render();
   }catch(e){}
 }
 function deleteProduct(id){
